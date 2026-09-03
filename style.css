@@ -1,0 +1,401 @@
+/* ===== 全局 ===== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: #1a1a2e;
+    color: #eee;
+    font-family: "Microsoft YaHei", Arial, sans-serif;
+    min-height: 100vh;
+}
+
+/* ===== 画面切换 ===== */
+.screen {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+.screen.active { display: flex; }
+
+/* ===== 开始画面 ===== */
+#screen-start h1 { font-size: 48px; margin-bottom: 10px; }
+.subtitle { color: #8899bb; margin-bottom: 25px; }
+
+.rules-box {
+    background: #16213e;
+    border: 1px solid #0f3460;
+    border-radius: 10px;
+    padding: 20px 30px;
+    margin-bottom: 30px;
+    max-width: 560px;
+}
+.rules-box h3 { color: #4ecca3; margin-bottom: 12px; }
+.rules-box li {
+    list-style: none;
+    padding: 6px 0;
+    line-height: 1.6;
+    color: #ccd5f0;
+    font-size: 15px;
+}
+.rules-box li::before { content: "▸ "; color: #e94560; }
+
+/* ===== 通用大按钮 ===== */
+.big-btn {
+    padding: 14px 45px;
+    font-size: 20px;
+    background: #e94560;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background .2s, transform .1s;
+}
+.big-btn:hover { background: #c73e54; transform: scale(1.05); }
+
+/* ===== 交接画面 ===== */
+#screen-pass { background: #12122a; }
+#screen-pass h2 { font-size: 36px; margin-bottom: 15px; color: #4ecca3; }
+#pass-text { font-size: 18px; color: #ccd5f0; margin-bottom: 35px; }
+
+/* ===== 布置画面 ===== */
+.hint { color: #8899bb; font-size: 14px; margin-bottom: 18px; }
+
+.place-layout {
+    display: flex;
+    gap: 30px;
+    align-items: flex-start;
+}
+
+.plane-panel {
+    background: #16213e;
+    border: 1px solid #0f3460;
+    border-radius: 10px;
+    padding: 15px;
+    width: 180px;
+}
+.plane-panel h3 { text-align: center; margin-bottom: 10px; color: #4ecca3; }
+
+.plane-slot {
+    background: #0f3460;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    padding: 8px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: border-color .15s;
+}
+.plane-slot:hover { border-color: #4ecca3; }
+.plane-slot.selected { border-color: #4ecca3; background: #123c5e; }
+.plane-slot.placed { opacity: 0.45; }
+.plane-slot.placed::after {
+    content: "✓已放置";
+    color: #4ecca3;
+    font-size: 12px;
+}
+
+/* 机库里的飞机缩略图 */
+.mini-grid { display: grid; gap: 1px; }
+.mini-cell {
+    width: 12px; height: 12px;
+    background: #1a1a3e;
+    border-radius: 2px;
+}
+.mini-cell.b { background: #4ecca3; }  /* 机身 */
+.mini-cell.h { background: #e94560; }  /* 机头 */
+
+#btn-rotate, #btn-clear, #btn-random {
+    width: 100%;
+    padding: 10px;
+    margin-top: 10px;
+    font-size: 15px;
+    background: #0f3460;
+    color: #eee;
+    border: 1px solid #2a4a7f;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#btn-rotate:hover, #btn-clear:hover, #btn-random:hover { background: #164a8a; }
+
+#btn-confirm {
+    width: 100%;
+    padding: 12px;
+    margin-top: 14px;
+    font-size: 16px;
+    background: #4ecca3;
+    color: #10332a;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+#btn-confirm:disabled { background: #2a4a5f; color: #777; cursor: not-allowed; }
+#btn-confirm:hover:not(:disabled) { background: #3db88f; }
+
+/* ===== 棋盘 ===== */
+.board {
+    display: grid;
+    grid-template-columns: repeat(10, 34px);
+    grid-template-rows: repeat(10, 34px);
+    gap: 2px;
+    background: #0f3460;
+    padding: 6px;
+    border-radius: 8px;
+}
+
+.cell {
+    background: #16213e;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+    transition: background .15s;
+}
+
+.board.active { border-color: #4ecca3; box-shadow: 0 0 14px rgba(78,204,163,.45); }
+.board.active .cell { cursor: pointer; }
+.board.active .cell:hover { background: #24355e; }
+#place-board .cell { cursor: pointer; }
+
+/* 己方飞机显示 */
+.cell.p1 { background: #2a7a5e; }   /* 机身 */
+.cell.p2 { background: #4ecca3; }   /* 机头 */
+
+/* 攻击结果 */
+.cell.miss { background: #233257; }
+.cell.miss::after { content: "0"; color: #9fb0dd; }
+.cell.hit1 { background: #b7873a; }
+.cell.hit1::after { content: "1"; }
+.cell.hit2 { background: #e94560; }
+.cell.hit2::after { content: "2"; }
+
+/* 己方棋盘：飞机被击中时的颜色 */
+.cell.p1.hit1 { background: #8a5a20; }
+.cell.p2.hit2 { background: #a02040; }
+
+/* 布置预览 */
+.cell.preview-ok { background: #3db88f; opacity: 0.7; }
+.cell.preview-bad { background: #e94560; opacity: 0.7; }
+
+/* 最近一次攻击高亮 */
+@keyframes flash { from { filter: brightness(2.2); } to { filter: brightness(1); } }
+.cell.last { outline: 2px solid #ffd700; outline-offset: -2px; animation: flash .5s; }
+
+/* ===== 开始画面切换按钮 ===== */
+.select-row { display: flex; gap: 12px; margin: 14px 0 4px; justify-content: center; }
+.sel-btn {
+    padding: 12px 24px; font-size: 15px;
+    background: #0f3460; color: #8899bb;
+    border: 2px solid #2a4a7f; border-radius: 8px;
+    cursor: pointer; transition: all .15s;
+}
+.sel-btn:hover { border-color: #4ecca3; color: #4ecca3; }
+.sel-btn.big { padding: 14px 45px; font-size: 19px; font-weight: bold; color: #eee; }
+.sel-btn.big:hover { transform: scale(1.04); }
+.sel-btn.big:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+/* ===== 对战画面帮助 ===== */
+#screen-battle { position: relative; }
+#btn-help {
+    position: absolute;
+    top: 14px;
+    right: 22px;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: #0f3460;
+    color: #4ecca3;
+    border: 2px solid #2a4a7f;
+    font-size: 22px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all .15s;
+    z-index: 11;
+}
+#btn-help:hover { background: #164a8a; transform: scale(1.08); }
+#help-popup {
+    position: absolute;
+    top: 66px;
+    right: 22px;
+    z-index: 10;
+    background: #16213e;
+    border: 1px solid #4ecca3;
+    border-radius: 10px;
+    padding: 16px 22px;
+    max-width: 500px;
+    text-align: left;
+    box-shadow: 0 6px 24px rgba(0,0,0,.55);
+}
+#help-popup h3 { color: #4ecca3; margin-bottom: 8px; font-size: 15px; }
+#help-rules { margin-bottom: 12px; }
+#help-rules li {
+    list-style: none;
+    padding: 4px 0;
+    font-size: 13px;
+    color: #ccd5f0;
+    line-height: 1.6;
+}
+#help-rules li::before { content: "▸ "; color: #e94560; }
+#help-fleet { display: flex; gap: 16px; margin-bottom: 14px; }
+#help-fleet > div { background: #0f3460; padding: 6px; border-radius: 6px; }
+#btn-help-close {
+    width: 100%;
+    padding: 6px;
+    font-size: 13px;
+    background: #0f3460;
+    color: #ccd5f0;
+    border: 1px solid #2a4a7f;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#btn-help-close:hover { background: #164a8a; }
+
+/* ===== 对战画面 ===== */
+.battle-layout {
+    display: flex;
+    gap: 30px;
+    align-items: flex-start;
+}
+.board-wrap { text-align: center; }
+.board-wrap h3 { margin-bottom: 10px; color: #8899bb; }
+
+#battle-status { margin-top: 15px; font-size: 16px; color: #4ecca3; min-height: 24px; }
+
+/* ===== 结束画面 ===== */
+#screen-over h2 { font-size: 42px; margin-bottom: 15px; }
+#over-detail { font-size: 18px; color: #ccd5f0; margin-bottom: 30px; }
+
+/* ===== 窄屏适配 ===== */
+@media (max-width: 850px) {
+    .battle-layout, .place-layout { flex-direction: column; align-items: center; }
+}
+
+/* ===== 模式/难度选择 ===== */
+.mode-select { display: flex; gap: 20px; margin-top: 10px; }
+.mode-btn {
+    padding: 14px 30px;
+    font-size: 18px;
+    background: #0f3460;
+    color: #eee;
+    border: 2px solid #2a4a7f;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all .15s;
+}
+.mode-btn:hover { border-color: #4ecca3; transform: scale(1.05); }
+
+#difficulty-select { display: none; margin-top: 15px; }
+#difficulty-select.show { display: block; }
+.diff-btn {
+    width: 132px;
+    padding: 10px 5px;
+    margin: 0 6px;
+    font-size: 16px;
+    font-weight: bold;
+    background: #e94560;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    line-height: 1.5;
+    transition: all .15s;
+}
+.diff-btn span { font-size: 12px; font-weight: normal; opacity: .85; }
+.diff-btn:hover { background: #c73e54; transform: scale(1.06); }
+.diff-btn[data-level="lunatic"] { background: #9b59b6; }
+.diff-btn[data-level="lunatic"]:hover { background: #8e44ad; }
+
+/* 结算画面布阵展示 */
+#screen-over .battle-layout { margin: 10px 0 25px; }
+
+/* ===== 样式编辑器 ===== */
+.editor-row { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+.editor-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.editor-col h3 { color: #4ecca3; font-size: 16px; }
+.editor-clear {
+    padding: 5px 14px;
+    font-size: 13px;
+    background: #0f3460;
+    color: #ccd5f0;
+    border: 1px solid #2a4a7f;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.editor-clear:hover { background: #164a8a; }
+.editor-grid {
+    grid-template-columns: repeat(5, 42px);
+    grid-template-rows: repeat(5, 42px);
+    width: fit-content;
+}
+.editor-grid .cell { cursor: pointer; }
+.editor-grid .cell:hover { background: #24355e; }
+.editor-grid .cell.p1 { background: #2a7a5e; }
+.editor-grid .cell.p2 { background: #4ecca3; }
+#editor-status { min-height: 96px; line-height: 1.8; color: #ccd5f0; margin-bottom: 10px; }
+.ok-text { color: #4ecca3; }
+.bad-text { color: #e94560; }
+#btn-shape-clear, #btn-shape-default, #btn-shape-confirm, #btn-shape-back {
+    width: 100%;
+    padding: 10px;
+    margin-top: 10px;
+    font-size: 15px;
+    background: #0f3460;
+    color: #eee;
+    border: 1px solid #2a4a7f;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#btn-shape-clear:hover, #btn-shape-default:hover, #btn-shape-back:hover { background: #164a8a; }
+#btn-shape-confirm { background: #4ecca3; color: #10332a; font-weight: bold; border: none; }
+#btn-shape-confirm:disabled { background: #2a4a5f; color: #777; cursor: not-allowed; }
+#btn-shape-confirm:hover:not(:disabled) { background: #3db88f; }
+
+/* ===== 自定义机队横幅 ===== */
+#custom-banner {
+    margin: 12px 0 4px;
+    padding: 8px 18px;
+    background: #123c5e;
+    border: 1px solid #4ecca3;
+    border-radius: 8px;
+    color: #4ecca3;
+    font-size: 14px;
+}
+#btn-restore-fleet {
+    margin-left: 10px;
+    padding: 4px 12px;
+    font-size: 13px;
+    background: #0f3460;
+    color: #ccd5f0;
+    border: 1px solid #2a4a7f;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#btn-restore-fleet:hover { background: #164a8a; }
+
+/* ===== 规则选择 ===== */
+.rule-select { display: flex; gap: 12px; margin: 15px 0 5px; }
+.rule-btn {
+    padding: 10px 22px;
+    font-size: 15px;
+    background: #0f3460;
+    color: #8899bb;
+    border: 2px solid #2a4a7f;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all .15s;
+}
+.rule-btn.active { border-color: #4ecca3; color: #4ecca3; background: #123c5e; }
+
+/* 伪装机头：已复查确认的真机身（暗色1） */
+.cell.hit1c { background: #4a3d22; }
+.cell.hit1c::after { content: "1"; color: #b7873a; }
+
+/* 结算揭示：被伪装成1的机头（保持机头绿底，显示1） */
+.cell.p2.hit1 { background: #4ecca3; }

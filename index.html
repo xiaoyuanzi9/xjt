@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>寻机头 - 双人对战</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===== 开始画面 ===== -->
+<div id="screen-start" class="screen active">
+    <h1>✈️ 寻机头</h1>
+    <p class="subtitle">双人对战策略游戏 · Made by Cirno</p>
+    <div class="rules-box">
+        <h3 id="rules-title">游戏规则 · 📜 经典</h3>
+        <ul id="rules-list">
+            <li>双方各在 10×10 的场地内秘密布置 <b>3 架飞机</b>（可旋转、不可重叠、不可出界）</li>
+            <li>轮流攻击对方一个格子，得知：<b>0</b>=空地 / <b>1</b>=机身 / <b>2</b>=机头</li>
+            <li>先找出对方全部 <b>3 个机头</b> 者获胜</li>
+            <li>若先手先找齐，后手可补走一步；步数相同则平局</li>
+        </ul>
+    </div>
+    <div class="select-row">
+        <button class="sel-btn" id="btn-rule-toggle">📜 规则：经典规则</button>
+        <button class="sel-btn" id="btn-mode-toggle">👥 模式：双人对战</button>
+        <button class="sel-btn" id="btn-third-toggle">✈️ 机队：经典机队</button>
+    </div>
+    <div class="select-row">
+        <button class="sel-btn big" id="btn-start-game">▶ 开始游戏</button>
+    </div>
+</div>
+
+<!-- ===== 样式编辑器 ===== -->
+<div id="screen-editor" class="screen">
+    <h2>✏️ 自定义飞机样式</h2>
+    <p class="hint">分别编辑三架飞机：点击格子切换 空地 → 机身(1) → 机头(2)。每架需<b>恰好 1 个机头</b>、<b>至少 1 格机身</b>（5×5 以内）；经典 / 伪装规则均可游玩。</p>
+    <div class="editor-row">
+        <div class="editor-col">
+            <h3>飞机 1</h3>
+            <div class="board editor-grid" id="shape-editor-0"></div>
+            <button class="editor-clear" data-plane="0">🗑 清空</button>
+        </div>
+        <div class="editor-col">
+            <h3>飞机 2</h3>
+            <div class="board editor-grid" id="shape-editor-1"></div>
+            <button class="editor-clear" data-plane="1">🗑 清空</button>
+        </div>
+        <div class="editor-col">
+            <h3>飞机 3</h3>
+            <div class="board editor-grid" id="shape-editor-2"></div>
+            <button class="editor-clear" data-plane="2">🗑 清空</button>
+        </div>
+        <div class="plane-panel">
+            <h3>样式校验</h3>
+            <p id="editor-status"></p>
+            <button id="btn-shape-default">↩ 恢复默认(A,A,B)</button>
+            <button id="btn-shape-confirm" disabled>✅ 确认样式</button>
+            <button id="btn-shape-back">← 返回</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 交接画面（防偷看） ===== -->
+<div id="screen-pass" class="screen">
+    <h2 id="pass-title"></h2>
+    <p id="pass-text"></p>
+    <button class="big-btn" id="btn-pass">我准备好了，开始</button>
+</div>
+
+<!-- ===== 布置画面 ===== -->
+<div id="screen-place" class="screen">
+    <h2 id="place-title"></h2>
+    <p class="hint">选择飞机 → 移入棋盘预览 → 点击放置 ｜ <b>R</b> 键旋转 ｜ 点击已放置飞机的<b>机头</b>可移除该飞机</p>
+    <div class="place-layout">
+        <div class="plane-panel">
+            <h3>机库</h3>
+            <div class="plane-slot" data-plane="0"></div>
+            <div class="plane-slot" data-plane="1"></div>
+            <div class="plane-slot" data-plane="2"></div>
+            <button id="btn-rotate">🔄 旋转 (R)</button>
+            <button id="btn-clear">🗑 清空重摆</button>
+            <button id="btn-random">💡 灵感</button>
+            <button id="btn-confirm" disabled>✅ 确认布局</button>
+        </div>
+        <div class="board" id="place-board"></div>
+    </div>
+</div>
+
+<!-- ===== 对战画面 ===== -->
+<div id="screen-battle" class="screen">
+    <button id="btn-help" title="帮助">?</button>
+    <div id="help-popup" style="display:none">
+        <h3>本局规则</h3>
+        <ul id="help-rules"></ul>
+        <h3>机队样式（3 架）</h3>
+        <div id="help-fleet"></div>
+        <button id="btn-help-close">关闭</button>
+    </div>
+    <h2 id="battle-title"></h2>
+    <div class="battle-layout">
+        <div class="board-wrap">
+            <h3>玩家 1 的场地</h3>
+            <div class="board" id="board-p1"></div>
+        </div>
+        <div class="board-wrap">
+            <h3>玩家 2 的场地</h3>
+            <div class="board" id="board-p2"></div>
+        </div>
+    </div>
+    <p class="hint" id="battle-status"></p>
+</div>
+
+<!-- ===== 结束画面 ===== -->
+<div id="screen-over" class="screen">
+    <h2 id="over-title"></h2>
+    <p id="over-detail"></p>
+    <div class="battle-layout">
+        <div class="board-wrap">
+            <h3 id="reveal-name-p1">玩家 1 的布阵</h3>
+            <div class="board" id="board-reveal-p1"></div>
+        </div>
+        <div class="board-wrap">
+            <h3 id="reveal-name-p2">玩家 2 的布阵</h3>
+            <div class="board" id="board-reveal-p2"></div>
+        </div>
+    </div>
+    <button class="big-btn" id="btn-restart">再来一局</button>
+</div>
+<!-- ai.js 先加载（无加载期依赖），game.js 随后构建引擎并初始化界面 -->
+<script src="ai.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
