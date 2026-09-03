@@ -1,0 +1,696 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>AI 技术检定</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a2e; color: #eee; font-family: "Microsoft YaHei", Arial, sans-serif; min-height: 100vh; }
+.screen { display: none; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+.screen.active { display: flex; }
+h1 { margin-bottom: 8px; }
+.subtitle { color: #8899bb; margin-bottom: 20px; }
+.rules-box { background: #16213e; border: 1px solid #0f3460; border-radius: 10px; padding: 15px 25px; margin-bottom: 25px; max-width: 640px; font-size: 14px; color: #ccd5f0; line-height: 2; }
+
+.test-layout { display: flex; gap: 30px; align-items: flex-start; margin-top: 15px; }
+.board { display: grid; grid-template-columns: repeat(10, 34px); grid-template-rows: repeat(10, 34px); gap: 2px; background: #0f3460; padding: 6px; border-radius: 8px; }
+.cell { background: #16213e; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: bold; cursor: pointer; }
+.cell:hover { background: #24355e; }
+.cell.miss { background: #233257; }
+.cell.miss::after { content: "0"; color: #9fb0dd; }
+.cell.hit1 { background: #b7873a; }
+.cell.hit1::after { content: "1"; }
+.cell.hit2 { background: #e94560; }
+.cell.hit2::after { content: "2"; }
+.cell.hit1c { background: #4a3d22; }
+.cell.hit1c::after { content: "1"; color: #b7873a; }
+.cell.asking { outline: 3px solid #ffd700; outline-offset: -3px; animation: pulse .7s infinite alternate; }
+@keyframes pulse { from { outline-color: #ffd700; } to { outline-color: #e94560; } }
+
+.panel { background: #16213e; border: 1px solid #0f3460; border-radius: 10px; padding: 15px; width: 235px; }
+.panel h3 { color: #4ecca3; margin-bottom: 8px; font-size: 15px; }
+#test-status { font-size: 14px; color: #ccd5f0; line-height: 1.9; margin-bottom: 12px; min-height: 66px; }
+.hint { color: #8899bb; font-size: 12px; margin-bottom: 10px; }
+.ans-btn { width: 100%; padding: 10px; margin-bottom: 8px; font-size: 15px; background: #0f3460; color: #eee; border: 1px solid #2a4a7f; border-radius: 6px; cursor: pointer; }
+.ans-btn:hover { background: #164a8a; }
+.prefill-btn { width: 42px; padding: 8px 0; margin-right: 6px; font-size: 15px; background: #0f3460; color: #eee; border: 1px solid #2a4a7f; border-radius: 6px; cursor: pointer; }
+.prefill-btn.selected { border-color: #4ecca3; color: #4ecca3; }
+#ask-cell { font-size: 18px; color: #ffd700; margin-bottom: 10px; }
+#result-text { font-size: 15px; line-height: 1.8; color: #ccd5f0; }
+
+/* 机队选择 + 自定义编辑器 */
+.select-row { display: flex; gap: 12px; margin-bottom: 14px; justify-content: center; }
+.sel-btn {
+    padding: 10px 22px; font-size: 15px;
+    background: #0f3460; color: #8899bb;
+    border: 2px solid #2a4a7f; border-radius: 8px;
+    cursor: pointer; transition: all .15s;
+}
+.sel-btn:hover { border-color: #4ecca3; color: #4ecca3; }
+.sel-btn.active { border-color: #4ecca3; color: #4ecca3; background: #123c5e; }
+.check-editor-row { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 14px; }
+.editor-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.editor-col h4 { color: #4ecca3; font-size: 14px; }
+.editor-clear {
+    padding: 4px 12px; font-size: 12px; background: #0f3460; color: #ccd5f0;
+    border: 1px solid #2a4a7f; border-radius: 6px; cursor: pointer;
+}
+.editor-clear:hover { background: #164a8a; }
+.editor-grid { grid-template-columns: repeat(5, 38px); grid-template-rows: repeat(5, 38px); width: fit-content; margin: 0 auto; }
+.editor-grid .cell { cursor: pointer; }
+.editor-grid .cell.p1 { background: #2a7a5e; }
+.editor-grid .cell.p2 { background: #4ecca3; }
+#custom-fleet-panel { margin-bottom: 18px; }
+#check-editor-status { min-height: 44px; margin: 10px 0; color: #ccd5f0; line-height: 1.7; }
+
+/* L 挑战结算布阵 */
+.reveal-board { grid-template-columns: repeat(10, 24px); grid-template-rows: repeat(10, 24px); margin-bottom: 10px; }
+.reveal-board .cell.p1 { background: #2a7a5e; }
+.reveal-board .cell.p2 { background: #4ecca3; }
+</style>
+</head>
+<body>
+
+<!-- ===== 模式选择 ===== -->
+<div id="screen-mode" class="screen active">
+    <h1>🧪 AI 技术检定</h1>
+    <p class="subtitle" id="mode-subtitle">检验 AI 的推理能力 · 不限时 · 可选贪心 / 期望计算 / 兜底三种策略</p>
+    <div class="rules-box">
+        ① 三个按钮分别切换 规则 / 策略 / 机队（点按循环切换），选好后点【▶ 开始检定】<br>
+        ②（可选）在棋盘上预填数字，构造你想测试的局面<br>
+        ③ 开始后 AI 每次询问一个格子，你如实作答：<br>
+        &nbsp;&nbsp;· 经典规则：回答 <b>0</b>（空地）/ <b>1</b>（机身）/ <b>2</b>（机头）<br>
+        &nbsp;&nbsp;· 伪装机头：机头会伪装成机身——首次询问打中飞机只能答 <b>1</b>；AI 复查时是机头答 <b>2</b>，是真机身选"确认真机身"（棋盘上显示为变色 1）<br>
+        ④ AI 找齐 3 个机头 = 检定成功；你的回答自相矛盾 = AI 宣布无解
+    </div>
+    <div class="select-row">
+        <button class="sel-btn" id="btn-rule-toggle">📜 规则：经典规则</button>
+        <button class="sel-btn" id="btn-strategy-toggle">📐 策略：期望计算</button>
+        <button class="sel-btn" id="btn-fleet-toggle">✈️ 机队：经典机队</button>
+    </div>
+    <p class="hint" id="strategy-desc"></p>
+    <div class="select-row">
+        <button class="sel-btn big" id="btn-start-check">▶ 开始检定</button>
+        <button class="sel-btn big" id="btn-l-challenge" title="单人挑战 LUNATIC AI（固定经典机队，不可自定义）">🄻 L 挑战</button>
+    </div>
+    <div id="custom-fleet-panel" style="display:none">
+        <p class="hint">分别编辑三架飞机：点击格子切换 空地 → 机身(1) → 机头(2)；每架需<b>恰好 1 个机头</b>、<b>至少 1 格机身</b>（5×5 以内）。</p>
+        <div class="check-editor-row">
+            <div class="editor-col">
+                <h4>飞机 1</h4>
+                <div class="board editor-grid" id="check-editor-0"></div>
+                <button class="editor-clear" data-plane="0">🗑 清空</button>
+            </div>
+            <div class="editor-col">
+                <h4>飞机 2</h4>
+                <div class="board editor-grid" id="check-editor-1"></div>
+                <button class="editor-clear" data-plane="1">🗑 清空</button>
+            </div>
+            <div class="editor-col">
+                <h4>飞机 3</h4>
+                <div class="board editor-grid" id="check-editor-2"></div>
+                <button class="editor-clear" data-plane="2">🗑 清空</button>
+            </div>
+        </div>
+        <p id="check-editor-status"></p>
+        <button class="ans-btn" id="btn-check-shape-confirm" disabled>✅ 使用该机队</button>
+    </div>
+</div>
+
+<!-- ===== 检定画面 ===== -->
+<div id="screen-test" class="screen">
+    <h2 id="test-title">AI 技术检定</h2>
+    <div class="test-layout">
+        <div class="board" id="test-board"></div>
+        <div class="panel">
+            <h3>状态</h3>
+            <div id="test-status">—</div>
+
+            <div id="prefill-area">
+                <h3>预填数字（可选）</h3>
+                <div id="prefill-btns"></div>
+                <p class="hint">选中数字后点击棋盘格子填入/清除</p>
+                <button class="ans-btn" id="btn-start-test">▶ 开始检定</button>
+                <button class="ans-btn" id="btn-clear-prefill">🗑 清空预填</button>
+            </div>
+
+            <div id="answer-area" style="display:none">
+                <h3>AI 询问</h3>
+                <div id="ask-cell"></div>
+                <div id="answer-btns"></div>
+            </div>
+
+            <div id="l-play-area" style="display:none">
+                <h3>L 挑战</h3>
+                <p class="hint">点击左侧棋盘格子攻击，LUNATIC AI 会给出数字；找齐 3 个机头即挑战成功。</p>
+                <button class="ans-btn" id="btn-l-back">← 结束挑战并返回</button>
+            </div>
+
+            <div id="result-area" style="display:none">
+                <h3>检定结果</h3>
+                <div id="result-text"></div>
+            </div>
+
+            <button class="ans-btn" id="btn-back" style="margin-top:15px">← 返回</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 环境垫片：提供 ai.js 依赖的全局变量 ===== -->
+<script>
+const SIZE = 10;
+const SHAPE_A = [
+    [0,0,2,0,0],
+    [1,1,1,1,1],
+    [0,0,1,0,0],
+    [0,1,1,1,0]
+];
+const SHAPE_B = [
+    [0,0,2,0,0],
+    [0,1,1,1,0],
+    [1,0,1,0,1],
+    [0,0,1,0,0],
+    [0,1,1,1,0]
+];
+const CLASSIC_FLEET = [SHAPE_A, SHAPE_A, SHAPE_B];
+
+function rotateShape(shape) {
+    const rows = shape.length, cols = shape[0].length;
+    const res = Array.from({length: cols}, () => Array(rows).fill(0));
+    for (let r = 0; r < rows; r++)
+        for (let c = 0; c < cols; c++)
+            res[c][rows - 1 - r] = shape[r][c];
+    return res;
+}
+function emptyBoard() {
+    return Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+}
+function emptyGuesses() {
+    return Array.from({length: SIZE}, () => Array(SIZE).fill(null));
+}
+
+// ai.js 会读到的游戏状态（检定只用其中一部分）
+let boards = null;
+let guesses = null;
+let headsFound = [0, 0];
+let gameRule = "classic";
+let aiLevel = "exact";
+let vsAI = true;
+</script>
+
+<script src="ai.js"></script>
+
+<script>
+// 机队：独立程序，默认经典机队；可在下方"自定义机队"中切换
+let fleet = CLASSIC_FLEET;
+buildEngine(fleet);
+
+// ===== 机队选择（经典 / 自定义） =====
+const EDITOR_SIZE = 5;
+const CHECK_DEFAULTS = [SHAPE_A, SHAPE_A, SHAPE_B];
+const gid = id => document.getElementById(id);
+let activeCustom = false;
+let checkEditorGrids = [[], [], []];   // 三架飞机各自的编辑器内容
+
+// ===== 三个切换按钮 + 开始 =====
+const RULE_NAMES = { classic: "📜 规则：经典规则", fake: "🎭 规则：伪装机头" };
+const STRAT_NAMES = { normal: "贪心策略", exact: "期望计算", worst: "兜底策略" };
+const STRAT_DESC = {
+    normal: "贪心策略：每一步选当前机头概率最大的格子",
+    exact: "期望计算：对每个格子推演进攻后的期望步数，选期望最小的格子（不限时、高精度）",
+    worst: "兜底策略：对每个格子推演进攻后最坏情况所需的步数，选最坏步数最小的格子（不限时）",
+};
+const STRATS = ["exact", "normal", "worst"];
+let curRule = "classic";
+let strategy = "exact";
+let fleetPending = false;   // 机队改动未确认前，开始键禁用
+let lChallenge = false;     // L 挑战进行中（固定经典机队 + LUNATIC）
+let lRestore = null;        // 挑战前机队状态，返回时恢复
+
+function refreshToggles() {
+    gid("btn-rule-toggle").textContent = RULE_NAMES[curRule];
+    gid("btn-strategy-toggle").textContent = "📐 策略：" + STRAT_NAMES[strategy];
+    gid("btn-fleet-toggle").textContent = activeCustom
+        ? "✏️ 机队：自定义机队" : "✈️ 机队：经典机队";
+    gid("strategy-desc").textContent = STRAT_DESC[strategy];
+}
+
+gid("btn-rule-toggle").addEventListener("click", () => {
+    curRule = (curRule === "classic") ? "fake" : "classic";
+    refreshToggles();
+});
+gid("btn-strategy-toggle").addEventListener("click", () => {
+    strategy = STRATS[(STRATS.indexOf(strategy) + 1) % STRATS.length];
+    refreshToggles();
+});
+gid("btn-fleet-toggle").addEventListener("click", () => {
+    if (activeCustom) {                       // 自定义 → 切回经典
+        const err = buildEngine(CLASSIC_FLEET);
+        if (err) { alert("经典机队构建失败：" + err); return; }
+        fleet = CLASSIC_FLEET;
+        activeCustom = false;
+        fleetPending = false;
+        gid("custom-fleet-panel").style.display = "none";
+    } else {
+        activeCustom = true;                  // 按钮立即显示自定义机队
+        fleetPending = true;                  // 机队未确认前不可开始
+        openCheckEditor();
+    }
+    gid("btn-start-check").disabled = fleetPending;
+    refreshToggles();
+});
+
+function setFleetActive(isCustom) {
+    activeCustom = isCustom;
+    refreshToggles();
+}
+
+// ===== 自定义机队编辑器 =====
+function openCheckEditor() {
+    for (let k = 0; k < 3; k++) {
+        const base = (activeCustom && fleet[k]) || CHECK_DEFAULTS[k];
+        checkEditorGrids[k] = [];
+        for (let r = 0; r < EDITOR_SIZE; r++) {
+            checkEditorGrids[k].push([]);
+            for (let c = 0; c < EDITOR_SIZE; c++)
+                checkEditorGrids[k][r].push((base[r] && base[r][c]) || 0);
+        }
+    }
+    buildCheckEditors();
+    updateCheckStatus();
+    gid("custom-fleet-panel").style.display = "block";
+}
+
+function buildCheckEditors() {
+    for (let k = 0; k < 3; k++) {
+        const el = gid("check-editor-" + k);
+        el.innerHTML = "";
+        for (let r = 0; r < EDITOR_SIZE; r++)
+            for (let c = 0; c < EDITOR_SIZE; c++) {
+                const cell = document.createElement("div");
+                cell.addEventListener("click", () => {
+                    checkEditorGrids[k][r][c] = (checkEditorGrids[k][r][c] + 1) % 3;
+                    renderCheckCell(cell, checkEditorGrids[k][r][c]);
+                    updateCheckStatus();
+                });
+                el.appendChild(cell);
+            }
+        renderCheckEditorGrid(k);
+    }
+}
+
+function renderCheckEditorGrid(k) {
+    const el = gid("check-editor-" + k);
+    for (let r = 0; r < EDITOR_SIZE; r++)
+        for (let c = 0; c < EDITOR_SIZE; c++)
+            renderCheckCell(el.children[r * EDITOR_SIZE + c], checkEditorGrids[k][r][c]);
+}
+
+function renderCheckCell(cell, v) {
+    cell.className = "cell" + (v === 1 ? " p1" : v === 2 ? " p2" : "");
+}
+
+function planeCounts(k) {
+    let twos = 0, ones = 0;
+    for (const row of checkEditorGrids[k])
+        for (const v of row) {
+            if (v === 2) twos++;
+            else if (v === 1) ones++;
+        }
+    return { twos, ones };
+}
+
+function planeLegal(k) {
+    const { twos, ones } = planeCounts(k);
+    return twos === 1 && ones >= 1;
+}
+
+function clearCheckPlane(k) {
+    checkEditorGrids[k] = checkEditorGrids[k].map(row => row.map(() => 0));
+    renderCheckEditorGrid(k);
+    updateCheckStatus();
+}
+
+function trimCheckShape(shape) {
+    let r0 = shape.length, r1 = -1, c0 = shape[0].length, c1 = -1;
+    for (let r = 0; r < shape.length; r++)
+        for (let c = 0; c < shape[0].length; c++)
+            if (shape[r][c] > 0) {
+                if (r < r0) r0 = r;
+                if (r > r1) r1 = r;
+                if (c < c0) c0 = c;
+                if (c > c1) c1 = c;
+            }
+    const out = [];
+    for (let r = r0; r <= r1; r++) out.push(shape[r].slice(c0, c1 + 1));
+    return out;
+}
+
+function updateCheckStatus() {
+    const parts = [0, 1, 2].map(k => {
+        const { twos, ones } = planeCounts(k);
+        const ok = twos === 1 && ones >= 1;
+        return "机" + (k + 1) + "：头 " + twos + " / 身 " + ones + (ok ? " ✅" : " ⚠");
+    });
+    const allOk = [0, 1, 2].every(planeLegal);
+    gid("check-editor-status").innerHTML = parts.join("　") + "<br>" +
+        (allOk ? "<span style='color:#4ecca3'>✅ 三架样式均合法，可以确认</span>"
+               : "<span style='color:#e94560'>⚠ 每架需恰好 1 个机头、至少 1 格机身</span>");
+    gid("btn-check-shape-confirm").disabled = !allOk;
+}
+
+document.querySelectorAll(".editor-clear").forEach(b =>
+    b.addEventListener("click", () => clearCheckPlane(+b.dataset.plane)));
+
+gid("btn-check-shape-confirm").addEventListener("click", () => {
+    if (![0, 1, 2].every(planeLegal)) return;
+    const newFleet = [0, 1, 2].map(k => trimCheckShape(checkEditorGrids[k]).map(row => row.slice()));
+    gid("check-editor-status").innerHTML = "正在计算布局组合…（样式越简单组合越多，稍候）";
+    gid("btn-check-shape-confirm").disabled = true;
+    setTimeout(() => {
+        const err = buildEngine(newFleet);
+        if (err) {
+            // 构建失败：保留原机队，显示错误；开始键保持禁用（机队仍未确认）
+            gid("check-editor-status").innerHTML =
+                "<span style='color:#e94560'>⚠ " + err + "</span>";
+            gid("btn-check-shape-confirm").disabled = false;
+            return;
+        }
+        fleet = newFleet;
+        activeCustom = true;
+        fleetPending = false;
+        gid("btn-start-check").disabled = false;   // 确认成功，允许开始
+        gid("custom-fleet-panel").style.display = "none";
+        refreshToggles();
+    }, 50);
+});
+
+// 开始检定
+gid("btn-start-check").addEventListener("click", () => beginTest(curRule));
+
+// L 挑战：单人挑战 LUNATIC AI（固定经典机队，不可自定义机型）
+gid("btn-l-challenge").addEventListener("click", () => {
+    lChallenge = true;
+    lRestore = { wasCustom: activeCustom, prevFleet: fleet };
+    if (activeCustom) {
+        // 挑战固定经典机队；结束后返回时再恢复自定义
+        const err = buildEngine(CLASSIC_FLEET);
+        if (err) { alert("经典机队构建失败：" + err); lChallenge = false; return; }
+        fleet = CLASSIC_FLEET;
+    }
+    beginTest(curRule, "lunatic");
+});
+
+// ===== 检定逻辑 =====
+const $ = id => document.getElementById(id);
+
+let testPhase = "prefill";   // prefill / asking / playing / ended
+let currentCell = -1;
+let steps = 0;
+let prefillVal = 0;
+let lMode = false;           // L 挑战：玩家点击格子攻击
+
+function showScreen(id) {
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    $(id).classList.add("active");
+}
+
+// ---------- 棋盘 ----------
+function buildTestBoard() {
+    const el = $("test-board");
+    el.innerHTML = "";
+    for (let r = 0; r < SIZE; r++)
+        for (let c = 0; c < SIZE; c++) {
+            const cell = document.createElement("div");
+            cell.className = "cell";
+            cell.addEventListener("click", () => onBoardClick(r, c));
+            el.appendChild(cell);
+        }
+}
+
+// 棋盘点击路由：L 挑战 = 玩家点击攻击；其余模式 = 预填
+function onBoardClick(r, c) {
+    if (lMode) {
+        if (testPhase === "playing") lAttack(r, c);
+        return;
+    }
+    onCellClick(r, c);
+}
+
+// L 挑战：玩家点击格子攻击，LUNATIC AI 给出数字
+function lAttack(r, c) {
+    var g = guesses[1][r][c];
+    // 已揭示的格子（0=空 / 2=机头 / 3=真机身）不能再攻击；
+    // 显示 1 的格子点击一次 = 复查（揭示 2 或 3），复查后同样锁定
+    if (g !== null && g !== 1) return;
+    const v = lunaticAnswer(r, c);        // AI 决定显示 0/1/2（伪装复查为 2/3）
+    guesses[1][r][c] = v;
+    steps++;
+    if (v === 2) headsFound[1]++;
+    renderBoard();
+    updateStatus();
+    if (headsFound[1] >= 3) endTest(true, "");
+}
+
+function cellAtBC(r, c) { return $("test-board").children[r * SIZE + c]; }
+
+function renderBoard() {
+    for (let r = 0; r < SIZE; r++)
+        for (let c = 0; c < SIZE; c++) {
+            const v = guesses[1][r][c];
+            let cls = "cell";
+            if (v === 0) cls += " miss";
+            if (v === 1) cls += " hit1";
+            if (v === 2) cls += " hit2";
+            if (v === 3) cls += " hit1c";
+            if (testPhase === "asking" && r * SIZE + c === currentCell) cls += " asking";
+            cellAtBC(r, c).className = cls;
+        }
+}
+
+function updateStatus(extra) {
+    var html =
+        "规则：" + (gameRule === "fake" ? "伪装机头" : "经典") +
+        " ｜ 步数：" + steps +
+        " ｜ 机头：" + headsFound[1] + "/3<br>";
+    if (!lMode) html += "剩余可能布局：" + atkCount + " 种<br>";   // L 挑战不显示
+    html += (extra ? "<br>" + extra : "");
+    $("test-status").innerHTML = html;
+}
+
+// ---------- 预填阶段 ----------
+function onCellClick(r, c) {
+    if (testPhase !== "prefill") return;
+    guesses[1][r][c] = (guesses[1][r][c] === prefillVal) ? null : prefillVal;
+    aiInit();          // 重置信念重新过滤（预填可随时修改）
+    syncAtk();
+    renderBoard();
+    updateStatus();
+}
+
+function buildPrefillBtns() {
+    const vals = gameRule === "fake" ? [0, 1, 2, 3] : [0, 1, 2];
+    // 伪装模式：真机身不显示数字 3，以变色 1（标记为 1*）表示
+    const label = v => (v === 3 ? "1*" : String(v));
+    const box = $("prefill-btns");
+    box.innerHTML = "";
+    vals.forEach(v => {
+        const b = document.createElement("button");
+        b.className = "prefill-btn" + (v === prefillVal ? " selected" : "");
+        b.textContent = label(v);
+        if (v === 3) b.title = "已确认的真机身（棋盘上显示为变色的 1）";
+        b.onclick = () => { prefillVal = v; buildPrefillBtns(); };
+        box.appendChild(b);
+    });
+}
+
+// ---------- 开始检定 ----------
+function startTest() {
+    // 预填中的 2 视为已确认的机头
+    headsFound[1] = 0;
+    for (let r = 0; r < SIZE; r++)
+        for (let c = 0; c < SIZE; c++)
+            if (guesses[1][r][c] === 2) headsFound[1]++;
+
+    aiInit();
+    syncAtk();
+    testPhase = "asking";
+    $("prefill-area").style.display = "none";
+    $("answer-area").style.display = "block";
+
+    if (atkCount === 0) {
+        endTest(false, "预填的数字自相矛盾，不存在任何合法的三机布局");
+        return;
+    }
+    if (headsFound[1] >= 3) {
+        endTest(true, "预填中已包含 3 个机头，无需推理");
+        return;
+    }
+    nextQuery();
+}
+
+// ---------- AI 询问 ----------
+function nextQuery() {
+    updateStatus("AI 思考中…");
+    setTimeout(() => {
+        if (testPhase !== "asking") return;
+        syncAtk();
+        if (atkCount === 0) {
+            endTest(false, "你的回答与所有可能布局矛盾");
+            return;
+        }
+        if (headsFound[1] >= 3) { endTest(true, ""); return; }
+        currentCell = aiChooseAttack();
+        renderBoard();
+        const r = Math.floor(currentCell / SIZE), c = currentCell % SIZE;
+        $("ask-cell").textContent =
+            "第 " + (steps + 1) + " 步：(" + (r + 1) + ", " + (c + 1) + ") 是什么？";
+        buildAnswerBtns();
+        updateStatus("等待你回答亮黄框的格子");
+    }, 100);
+}
+
+function buildAnswerBtns() {
+    const r = Math.floor(currentCell / SIZE), c = currentCell % SIZE;
+    const g = guesses[1][r][c];
+    let opts;
+    if (gameRule === "fake") opts = (g === 1) ? [2, 3] : [0, 1];
+    else opts = [0, 1, 2];
+    const names = { 0: "0（空地）", 1: "1（机身）", 2: "2（机头）", 3: "确认真机身" };
+    const box = $("answer-btns");
+    box.innerHTML = "";
+    opts.forEach(v => {
+        const b = document.createElement("button");
+        b.className = "ans-btn";
+        b.textContent = names[v];
+        b.onclick = () => answer(v);
+        box.appendChild(b);
+    });
+}
+
+// ---------- 玩家回答 ----------
+function answer(v) {
+    if (testPhase !== "asking" || currentCell < 0) return;
+    const r = Math.floor(currentCell / SIZE), c = currentCell % SIZE;
+    guesses[1][r][c] = v;
+    if (v === 2) headsFound[1]++;
+    steps++;
+    currentCell = -1;
+    renderBoard();
+
+    syncAtk();
+    if (atkCount === 0) {
+        updateStatus();
+        endTest(false, "你的回答与所有可能的三机布局矛盾");
+        return;
+    }
+    if (headsFound[1] >= 3) {
+        updateStatus();
+        endTest(true, "");
+        return;
+    }
+    nextQuery();
+}
+
+// ---------- 结束 ----------
+function endTest(success, reason) {
+    testPhase = "ended";
+    currentCell = -1;
+    renderBoard();
+    $("answer-area").style.display = "none";
+    $("result-area").style.display = "block";
+    if (success)
+        $("result-text").innerHTML = lChallenge
+            ? "🎉 <b style='color:#4ecca3'>挑战成功</b><br>你（玩家）共攻击 " + steps + " 次找齐了 3 个机头"
+            : "🎉 <b style='color:#4ecca3'>检定成功</b><br>AI 用 " + steps + " 步找齐了 3 个机头";
+    else
+        $("result-text").innerHTML =
+            "⛔ <b style='color:#e94560'>AI 宣布无解</b><br>" + reason;
+    // L 挑战：展示一种与全部回答一致的布阵
+    if (lChallenge && success) {
+        var bd = lunaticReveal();
+        var el = document.createElement("div");
+        el.className = "board reveal-board";
+        for (var r = 0; r < SIZE; r++)
+            for (var c = 0; c < SIZE; c++) {
+                var d = document.createElement("div");
+                d.className = "cell" + (bd[r][c] === 1 ? " p1" : bd[r][c] === 2 ? " p2" : "");
+                el.appendChild(d);
+            }
+        var cap = document.createElement("p");
+        cap.className = "hint";
+        cap.textContent = "▲ 与你全部回答一致的一种布阵（绿=机身，亮绿=机头）";
+        $("result-area").appendChild(el);
+        $("result-area").appendChild(cap);
+    }
+    updateStatus();
+}
+
+// ---------- 模式入口 ----------
+function beginTest(rule, levelOverride) {
+    gameRule = rule;
+    aiLevel = levelOverride || strategy;   // 贪心(normal) / 期望计算(exact) / 兜底(worst) / L挑战(lunatic)
+    lMode = (aiLevel === "lunatic");
+    lunaticAskBoard = 1;                   // 检定中 lunatic 读你的观察 guesses[1]
+    guesses = [emptyGuesses(), emptyGuesses()];
+    headsFound = [0, 0];
+    steps = 0;
+    currentCell = -1;
+    testPhase = lMode ? "playing" : "prefill";
+    prefillVal = 0;
+    aiInit();
+    buildTestBoard();
+    buildPrefillBtns();
+    document.querySelectorAll(".reveal-board").forEach(e => e.remove());
+    $("test-title").textContent =
+        "AI 技术检定 · " + (rule === "fake" ? "🎭 伪装机头" : "📜 经典规则") +
+        " · " + (aiLevel === "lunatic" ? "🄻 L 挑战" : STRAT_NAMES[aiLevel]) +
+        (activeCustom ? " · ✏️ 自定义机队" : "");
+    $("prefill-area").style.display = lMode ? "none" : "block";
+    $("l-play-area").style.display = lMode ? "block" : "none";
+    $("answer-area").style.display = "none";
+    $("result-area").style.display = "none";
+    renderBoard();
+    updateStatus(lMode ? "点击棋盘格子攻击，找齐 3 个机头即挑战成功" : "预填阶段：可自由构造局面");
+    showScreen("screen-test");
+}
+
+// ---------- 按钮绑定 ----------
+$("btn-start-test").addEventListener("click", startTest);
+$("btn-clear-prefill").addEventListener("click", () => {
+    if (testPhase !== "prefill") return;
+    guesses[1] = emptyGuesses();
+    aiInit();
+    renderBoard();
+    updateStatus();
+});
+$("btn-back").addEventListener("click", () => {
+    // L 挑战结束后恢复挑战前的机队
+    if (lChallenge && lRestore) {
+        const err = buildEngine(lRestore.prevFleet);
+        if (!err) { fleet = lRestore.prevFleet; activeCustom = lRestore.wasCustom; }
+        lChallenge = false;
+        lRestore = null;
+        refreshToggles();
+    }
+    lMode = false;
+    testPhase = "prefill";
+    showScreen("screen-mode");
+});
+$("btn-l-back").addEventListener("click", () => {
+    // 中途放弃：恢复挑战前机队并回模式页
+    if (lChallenge && lRestore) {
+        const err = buildEngine(lRestore.prevFleet);
+        if (!err) { fleet = lRestore.prevFleet; activeCustom = lRestore.wasCustom; }
+        lChallenge = false;
+        lRestore = null;
+    }
+    lMode = false;
+    testPhase = "prefill";
+    refreshToggles();
+    showScreen("screen-mode");
+});
+
+</script>
+</body>
+</html>
