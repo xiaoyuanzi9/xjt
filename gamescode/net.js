@@ -201,6 +201,7 @@ $o("btn-online-first").addEventListener("click", () => {
 });
 $o("btn-host-start").addEventListener("click", () => {
     if (!conn || !conn.open || !guestReady) return;
+    $o("btn-host-start").disabled = true;   // 防连点造成重复开局
     const fleet = PLANES.map(sh => sh.map(row => row.slice()));
     netSend({ t: "start", firstIsHost: onlineSettings.firstIsHost,
               rule: onlineSettings.rule, fleet: fleet, limit: onlineSettings.limit });

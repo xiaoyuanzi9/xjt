@@ -122,6 +122,8 @@ function startPlacement(player) {
     buildBoard($("place-board"));
     updateHangar();
     updateConfirm();   // 场地初始为空，三架都放好后才能确认
+    // 联机确认布置后会把这三个按钮锁死，新的一局布置要恢复可用
+    $("btn-rotate").disabled = $("btn-clear").disabled = $("btn-random").disabled = false;
     showScreen("screen-place");
 }
 
@@ -145,6 +147,7 @@ function getCurrentShape() {
 
 function rotateCurrent() {
     if (phase !== "place" || planeStates[selectedPlane].placed) return;
+    if (online && online.active && online.placedMe) return;   // 联机：已确认布置，禁止再改动
     planeStates[selectedPlane].shape = rotateShape(getCurrentShape());
     if (lastHover) showPreview(lastHover[0], lastHover[1]);
 }
@@ -164,6 +167,7 @@ function canPlace(shape, r, c) {
 
 function showPreview(r, c) {
     clearPreview();
+    if (online && online.active && online.placedMe) return;
     if (planeStates[selectedPlane].placed) return;
     lastHover = [r, c];
     const shape = getCurrentShape();
@@ -186,6 +190,7 @@ function clearPreview() {
 }
 
 function tryPlace(r, c) {
+    if (online && online.active && online.placedMe) return;   // 联机：已确认布置，禁止再改动
     // 点击已放置飞机的机头 → 移除该飞机
     if (boards[placingPlayer][r][c] === 2) { removePlaneAt(r, c); return; }
     if (planeStates[selectedPlane].placed) return;
@@ -238,6 +243,7 @@ function updateConfirm() {
 }
 
 function clearAll() {
+    if (online && online.active && online.placedMe) return;   // 联机：已确认布置，禁止清空
     boards[placingPlayer] = emptyBoard();
     planeStates.forEach(p => { p.placed = false; p.shape = null; });
     selectedPlane = 0;
@@ -249,6 +255,7 @@ function clearAll() {
 // ---------- 灵感：尝试把未放置的飞机随机摆上场地 ----------
 // 已放置的飞机不动；某架飞机找不到空位时保持原样（无事发生）
 function randomPlace() {
+    if (online && online.active && online.placedMe) return;   // 联机：已确认布置，禁止再改动
     clearPreview();
     for (let i = 0; i < PLANES.length; i++) {
         if (planeStates[i].placed) continue;
@@ -563,9 +570,13 @@ $("btn-pass").addEventListener("click", () => passNext && passNext());
 
 $("btn-confirm").addEventListener("click", () => {
     if (online && online.active) {
-        // 联机：布置完成只通知对方，等双方都确认后才自动开战
+        // 联机：布置完成只通知对方，等双方都确认后才自动开战；
+        // 锁死确认键与全部布置操作，防止等待期间把已确认的机队改掉
         online.placedMe = true;
         $("btn-confirm").disabled = true;
+        $("btn-rotate").disabled = true;
+        $("btn-clear").disabled = true;
+        $("btn-random").disabled = true;
         $("place-title").textContent = "✅ 已布置，等待对方完成布置…";
         netSend({ t: "placed" });
         onlineMaybeStartBattle();
@@ -844,6 +855,7 @@ function endGame(winner) {
     phase = "over";
     busy = false;
     stopMoveTimer();
+    clearTurnTimer();
     if (online && online.active) netSend({ t: "reveal", board: boards[0] });   // 联机：互换真实布阵
     if (winner === -1) {
         $("over-title").textContent = "🤝 平局！";
@@ -962,11 +974,21 @@ function onlineAttack(r, c) {
     updateBattleStatus("⚔ 已攻击 (" + (r + 1) + "," + (c + 1) + ")，等待对方确认…");
 }
 
-// 攻击方收到防守方的答复
+// 攻击方收到防守方的答复。
+// 注意：这里不解锁 busy——busy 保持 true 直到 finishAttack 的换手延时结束，
+// 这是“一回合只能打一次”的关键；提前解锁会让玩家在换手完成前又能发射第二发。
 function onlineApplyResult(r, c, val) {
-    if (phase !== "battle") return;
+    if (phase !== "battle" || !busy) return;   // 没有待答复的攻击：忽略（防重复消息）
+    const g = guesses[0][r][c];
+    if (gameRule === "fake") {
+        if (g === 0 || g === 2 || g === 3) return;
+        if (g === null && val !== 0 && val !== 1) return;   // 首击只能显示 0/1
+        if (g === 1 && val !== 2 && val !== 3) return;      // 复查只能显示 2/3
+    } else {
+        if (g !== null) return;
+        if (val !== 0 && val !== 1 && val !== 2) return;
+    }
     clearTurnTimer();
-    currentPlayer = 0; busy = false;
     moves[0]++;
     guesses[0][r][c] = val;
     let msg;
@@ -976,16 +998,16 @@ function onlineApplyResult(r, c, val) {
     finishAttack(0, r, c, msg);
 }
 
-// 防守方收到攻击：本地查板 → 按规则算显示值 → 回执（真实布阵不出本机）
+// 防守方收到攻击：本地查板 → 按规则算显示值 → 回执（真实布阵不出本机）。
+// 同样不在此处解锁 busy：换手延时结束后才允许下一击；
+// 双方时钟/延迟导致“换手画面还没切完就收到新攻击”由 clearTurnTimer 撤销本地未完成的换手来消化。
 function onlineOnAttack(r, c) {
     if (phase !== "battle") return;
-    clearTurnTimer();
-    busy = false;
-    currentPlayer = 1;   // 若本地换手画面还没切完（双方时钟/延迟差异），直接对齐到对方回合
     const g = guesses[1][r][c];
     if (gameRule === "fake") {
         if (g !== null && g !== 1) return;
     } else if (g !== null) return;
+    clearTurnTimer();
     const truth = boards[0][r][c];
     const val = gameRule === "fake"
         ? (g === 1 ? (truth === 2 ? 2 : 3) : (truth === 2 ? 1 : truth))
