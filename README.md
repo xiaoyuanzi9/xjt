@@ -3,6 +3,9 @@
 > 双人对战策略游戏 + AI 引擎 + AI 技术检定工具。
 > 本文档面向下一个接手的开发者（人类或 AI），涵盖游戏规则、使用方式、代码结构与已知注意事项。
 
+**🎮 在线试玩：<https://xiaoyuanzi9.github.io/-/>**
+（GitHub Pages 托管，随 main 分支推送自动部署更新；双击本地 `gamescode/index.html` 离线可玩）
+
 ---
 
 ## 1. 这是什么
@@ -52,8 +55,8 @@
 
 ## 3. 程序使用方式
 
-**无需安装任何东西**：直接双击 `gamescode/index.html` 用浏览器（Chrome/Edge）打开即可。
-不需要本地服务器。
+**无需安装任何东西**：直接双击 `gamescode/index.html` 用浏览器（Chrome/Edge）打开即可，
+不需要本地服务器；也可以直接打开线上地址 <https://xiaoyuanzi9.github.io/-/> 游玩。
 
 ### 3.1 主页面（index.html）
 
