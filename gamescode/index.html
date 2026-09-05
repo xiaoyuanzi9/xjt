@@ -97,6 +97,13 @@
         <div id="help-fleet"></div>
         <button id="btn-help-close">关闭</button>
     </div>
+    <button id="btn-mark" title="标记：笔 / 橡皮 / 旗帜">📌</button>
+    <div id="mark-popup" style="display:none">
+        <button class="mark-btn" id="mk-pen" title="笔：按住拖动在屏幕上画线">✏️</button>
+        <button class="mark-btn" id="mk-eraser" title="橡皮：拖动擦除线条；按住不放旋转，转满一周（5 秒）清空全部线条">🧽</button>
+        <button class="mark-btn" id="mk-flag" title="旗帜：点击棋盘格子循环 旗1 → 旗2 → 无旗"><svg class="tri-flag" viewBox="0 0 10 10"><path d="M0 0 L10 0 L0 10 Z"/></svg></button>
+    </div>
+    <svg id="draw-layer"></svg>
     <h2 id="battle-title"></h2>
     <div class="battle-layout">
         <div class="board-wrap">

@@ -518,11 +518,7 @@ $("btn-shape-back").addEventListener("click", () => {
     showScreen(editorReturnScreen);
     if (typeof netOnFleetApplied === "function") netOnFleetApplied();
 });
-// 对战帮助
-$("btn-help").addEventListener("click", () => {
-    const p = $("help-popup");
-    p.style.display = p.style.display === "block" ? "none" : "block";
-});
+// 对战帮助（与标记面板互斥的切换逻辑在下方标记功能区）
 $("btn-help-close").addEventListener("click", () => {
     $("help-popup").style.display = "none";
 });
@@ -639,11 +635,198 @@ function updateHelpPanel() {
     $("help-rules").innerHTML = RULE_TEXTS[gameRule].list;
 }
 
+// ---------- 标记功能（笔 / 橡皮 / 旗帜，纯本地注释，不发送给对方） ----------
+let markTool = null;        // null / "pen" / "eraser" / "flag"
+let strokes = [];           // [{pts:[[x,y],...], el:<polyline>}]
+let flagsData = null;       // flagsData[p][r][c]: 0 无旗 / 1 旗1 / 2 旗2
+const ERASE_R = 7;          // 橡皮擦除半径：比笔（3px 粗）稍粗
+
+function flagsEmpty() {
+    return Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+}
+
+// 新一局：清空笔画与旗帜，收起工具面板
+function initMarkState() {
+    markTool = null;
+    strokes = [];
+    flagsData = [flagsEmpty(), flagsEmpty()];
+    const svg = $("draw-layer");
+    svg.innerHTML = "";
+    svg.style.display = "";
+    svg.classList.remove("tool-pen", "tool-eraser");
+    $("mark-popup").style.display = "none";
+    document.querySelectorAll(".mark-btn").forEach(b => b.classList.remove("active", "spinning"));
+}
+
+// 标记键：展开/收起工具面板；收起时只隐藏笔画，旗帜不受影响
+$("btn-mark").addEventListener("click", () => {
+    const pp = $("mark-popup");
+    if (pp.style.display === "none") {
+        $("help-popup").style.display = "none";
+        pp.style.display = "flex";
+        setStrokesVisible(true);
+    } else {
+        pp.style.display = "none";
+        setMarkTool(null);
+        setStrokesVisible(false);
+    }
+});
+
+function setStrokesVisible(v) {
+    $("draw-layer").style.display = v ? "" : "none";
+}
+
+function setMarkTool(t) {
+    markTool = t;
+    $("mk-pen").classList.toggle("active", t === "pen");
+    $("mk-eraser").classList.toggle("active", t === "eraser");
+    $("mk-flag").classList.toggle("active", t === "flag");
+    const svg = $("draw-layer");
+    svg.classList.toggle("tool-pen", t === "pen");
+    svg.classList.toggle("tool-eraser", t === "eraser");
+    if (t === "pen" || t === "eraser") setStrokesVisible(true);   // 画/擦时必须能看到笔画
+}
+
+// ---------- 笔与橡皮（SVG 画线层） ----------
+(function () {
+    const svg = $("draw-layer");
+    let cur = null;
+    const pt = e => {
+        const r = svg.getBoundingClientRect();
+        return [e.clientX - r.left, e.clientY - r.top];
+    };
+    svg.addEventListener("pointerdown", e => {
+        if (markTool !== "pen" && markTool !== "eraser") return;
+        e.preventDefault();
+        svg.setPointerCapture(e.pointerId);
+        if (markTool === "pen") {
+            const pl = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+            pl.setAttribute("class", "stroke");
+            svg.appendChild(pl);
+            cur = { pts: [pt(e)], el: pl };
+            strokes.push(cur);
+        } else {
+            cur = { last: pt(e) };
+            eraseAt(cur.last);
+        }
+    });
+    svg.addEventListener("pointermove", e => {
+        if (!cur) return;
+        const p = pt(e);
+        if (markTool === "pen") {
+            cur.pts.push(p);
+            cur.el.setAttribute("points", cur.pts.map(q => q[0] + "," + q[1]).join(" "));
+        } else {
+            eraseSegment(cur.last, p);   // 快速拖动时沿线插值，避免擦出断点
+            cur.last = p;
+        }
+    });
+    const end = () => {
+        if (!cur) return;
+        if (markTool === "pen" && cur.pts.length < 2) {   // 单击不成线，丢弃
+            cur.el.remove();
+            strokes = strokes.filter(s => s !== cur);
+        }
+        cur = null;
+    };
+    svg.addEventListener("pointerup", end);
+    svg.addEventListener("pointercancel", end);
+})();
+
+function distToSeg(p, a, b) {
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const L2 = dx * dx + dy * dy;
+    let t = L2 ? ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+}
+
+function strokeHit(s, p) {
+    if (s.pts.length === 1) return Math.hypot(p[0] - s.pts[0][0], p[1] - s.pts[0][1]) < ERASE_R;
+    for (let i = 0; i < s.pts.length - 1; i++)
+        if (distToSeg(p, s.pts[i], s.pts[i + 1]) < ERASE_R) return true;
+    return false;
+}
+
+function eraseAt(p) {
+    strokes = strokes.filter(s => {
+        if (strokeHit(s, p)) { s.el.remove(); return false; }
+        return true;
+    });
+}
+
+function eraseSegment(a, b) {
+    const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const steps = Math.max(1, Math.ceil(d / 4));
+    for (let i = 0; i <= steps; i++)
+        eraseAt([a[0] + (b[0] - a[0]) * i / steps, a[1] + (b[1] - a[1]) * i / steps]);
+}
+
+function clearAllStrokes() {
+    strokes.forEach(s => s.el.remove());
+    strokes = [];
+}
+
+// 橡皮按钮长按：按住时旋转，转满一周（5 秒）清空全部线条
+(function () {
+    const eb = $("mk-eraser");
+    let hold = null;
+    eb.addEventListener("pointerdown", () => {
+        eb.classList.add("spinning");
+        hold = setTimeout(() => {
+            hold = null;
+            clearAllStrokes();
+            eb.classList.remove("spinning");
+            eb.classList.add("cleared-flash");
+            setTimeout(() => eb.classList.remove("cleared-flash"), 400);
+        }, 5000);
+    });
+    const cancel = () => {
+        if (hold) { clearTimeout(hold); hold = null; }
+        eb.classList.remove("spinning");
+    };
+    eb.addEventListener("pointerup", cancel);
+    eb.addEventListener("pointerleave", cancel);
+    eb.addEventListener("pointercancel", cancel);
+    eb.addEventListener("contextmenu", e => e.preventDefault());
+    eb.addEventListener("click", () => setMarkTool("eraser"));
+})();
+
+$("mk-pen").addEventListener("click", () => setMarkTool("pen"));
+$("mk-flag").addEventListener("click", () => setMarkTool("flag"));
+
+// ---------- 旗帜：点击格子循环 无旗 → 旗1 → 旗2 → 无旗 ----------
+function toggleFlag(p, r, c) {
+    const v = (flagsData[p][r][c] + 1) % 3;
+    flagsData[p][r][c] = v;
+    const cell = cellAt(p === 0 ? $("board-p1") : $("board-p2"), r, c);
+    const old = cell.querySelector(".flag-mark");
+    if (old) old.remove();
+    if (v) {
+        const f = document.createElement("div");
+        f.className = "flag-mark f" + v;
+        f.innerHTML = '<svg viewBox="0 0 10 10"><path d="M0 0 L10 0 L0 10 Z"/></svg>';
+        cell.appendChild(f);
+    }
+}
+
+// 帮助与标记面板互斥
+$("btn-help").addEventListener("click", () => {
+    const p = $("help-popup");
+    const showing = p.style.display === "block";
+    p.style.display = showing ? "none" : "block";
+    if (!showing) {
+        $("mark-popup").style.display = "none";
+        setMarkTool(null);
+    }
+});
+
 function startBattle(firstPlayer) {
     phase = "battle";
     currentPlayer = firstPlayer;
     busy = false;
     stopMoveTimer();
+    initMarkState();
     $("help-popup").style.display = "none";   // 新对局收起上一局可能打开的帮助
     updateHelpPanel();
     buildBoard($("board-p1"));
@@ -838,13 +1021,26 @@ function aiTurn() {
 
 
 // ---------- 点击监听 ----------
+// 旗帜模式：点击任一棋盘格子只切换旗帜（本地注释），不发起攻击、不受回合限制
 $("board-p1").addEventListener("click", e => {
+    if (markTool === "flag") {
+        const cell = e.target.closest(".cell");
+        if (cell && phase === "battle")
+            toggleFlag(0, +cell.dataset.r, +cell.dataset.c);
+        return;
+    }
     if (vsAI || (online && online.active)) return;   // 人机/联机模式：不能点自己的场地
     if (phase !== "battle" || busy || currentPlayer !== 1) return;
     if (!e.target.classList.contains("cell")) return;
     handleAttack(+e.target.dataset.r, +e.target.dataset.c);
 });
 $("board-p2").addEventListener("click", e => {
+    if (markTool === "flag") {
+        const cell = e.target.closest(".cell");
+        if (cell && phase === "battle")
+            toggleFlag(1, +cell.dataset.r, +cell.dataset.c);
+        return;
+    }
     if (phase !== "battle" || busy || currentPlayer !== 0) return;
     if (!e.target.classList.contains("cell")) return;
     handleAttack(+e.target.dataset.r, +e.target.dataset.c);
